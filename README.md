@@ -46,7 +46,7 @@ FILL ME
 * [1-certs-to-odfe-kube-cluster.yml](./1-certs-to-odfe-kube-cluster.yml)
 
 ```bash
-cd /path/to/ansible-helm-wrapper
+cd /path/to/ansible-wrapper-for-opendistro
 ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 1-certs-to-odfe-kube-cluster.yml --ask-vault-pass
 ```
 
@@ -54,7 +54,7 @@ ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 1-certs-to-odfe-kube-cl
 * [2-append-configs-to-cluster.yml](./2-append-configs-to-cluster.yml)
 
 ```bash
-cd /path/to/ansible-helm-wrapper
+cd /path/to/ansible-wrapper-for-opendistro
 ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 2-append-configs-to-cluster.yml --ask-vault-pass
 ```
 
@@ -62,7 +62,7 @@ ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 2-append-configs-to-clu
 * [3-opendistro-cluster-deploy.yml](./3-opendistro-cluster-deploy.yml)
 
 ```bash
-cd /path/to/ansible-helm-wrapper
+cd /path/to/ansible-wrapper-for-opendistro
 ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 3-opendistro-cluster-deploy.yml --ask-vault-pass
 ```
 
@@ -70,6 +70,6 @@ ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 3-opendistro-cluster-de
 * [4-init-odfe-security-index.yml](./4-init-odfe-security-index.yml)
 
 ```bash
-cd /path/to/ansible-helm-wrapper
+cd /path/to/ansible-wrapper-for-opendistro
 ansible-playbook -i /path/to/your/odfe-<inventory>.hosts 4-init-odfe-security-index.yml --ask-vault-pass
 ```
