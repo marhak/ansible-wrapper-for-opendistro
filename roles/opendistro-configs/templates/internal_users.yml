@@ -1,0 +1,94 @@
+#jinja2: lstrip_blocks: True
+---
+# This is the internal user database
+# The hash value is a bcrypt hash and can be generated with plugin/tools/hash.sh
+
+_meta:
+  type: "internalusers"
+  config_version: 2
+{#
+# Define your internal users here
+# may require
+# pip3 install passlib
+# password_hash('bcrypt') requires at least v2.9
+# https://github.com/ansible/ansible/issues/57509
+#}
+admin:
+  hash: "{{ opendistro_admin_password | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: true
+  backend_roles:
+    - "admin"
+  description: "admin user"
+
+elastic:
+  hash: "{{ opendistro_elastic_password | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: true
+  opendistro_security_roles:
+    - "all_access"
+  description: "elastic user just for fun"
+
+kibanaserver:
+  hash: "{{ opendistro_kibana_password | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: true
+  opendistro_security_roles:
+    - "kibana_server"
+    - "kibana_user"
+    - "all_access"
+  description: "kibanaserver user"
+
+logstash_internal:
+  hash: "{{ opendistro_logstash_password | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: true
+  opendistro_security_roles:
+    - "logstash"
+    - "logstash_indexer"
+    - "alerting_view_alerts"
+  description: "logstash user for the logstash clients"
+
+{% if add_int_readall_users is defined and add_int_readall_users | length > 0 and add_int_readall_users_password | length > 0 %}
+  {% for user in add_int_readall_users %}
+{{ user }}:
+  hash: "{{ add_int_readall_users_password[loop.index0] | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: false
+  opendistro_security_roles:
+    - "readall"
+    - "alerting_view_alerts"
+    - "{{ user }}"
+  {% if readall_user_attributes is defined and readall_user_attributes[user] is defined and readall_user_attributes[user] is iterable %}
+  attributes:
+    {% for attr in readall_user_attributes[user] %}
+    {{ attr }}
+    {% endfor %}
+  {% endif %}
+  description: "{{ user }} user"
+  {% endfor %}
+{% endif %}
+
+{% if add_int_admin_users is defined and add_int_admin_users | length > 0 and add_int_admin_users_password | length > 0 %}
+  {% for user in add_int_admin_users %}
+{{ user }}:
+  hash: "{{ add_int_admin_users_password[loop.index0] | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: false
+  opendistro_security_roles:
+    - "kibana_user"
+    - "all_access"
+    - "alerting_crud_alerts"
+  {% if admin_user_attributes is defined and admin_user_attributes[user] is defined and admin_user_attributes[user] is iterable %}
+  attributes:
+    {% for attr in admin_user_attributes[user] %}
+    {{ attr }}
+    {% endfor %}
+  {% endif %}
+  description: "{{ user }} admin user"
+  {% endfor %}
+{% endif %}
+
+{% if groups['elastalert_server'] is defined and groups['elastalert_server'] | length > 0 and groups['elastalert_server'] is iterable %}
+{{ hostvars[groups.elastalert_server[0]].elastalert_username }}:
+  hash: "{{ hostvars[groups.elastalert_server[0]].elastalert_password | password_hash('bcrypt', 'SaltsSalt0123456782019', rounds=6) }}"
+  reserved: false
+  opendistro_security_roles:
+    - "elastalert"
+    - "alerting_view_alerts"
+  description: "{{ hostvars[groups.elastalert_server[0]].elastalert_username }} user"
+{% endif %}
