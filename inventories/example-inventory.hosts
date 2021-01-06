@@ -45,7 +45,7 @@ ingest_javaOpts="-Xms4096m -Xmx4096m"
 ingress_fqdns=["{{helm_release_name}}-odfe-ingress.nks.logstack.{{cluster_domain}}"]
 ## Kibana:
 kibana_pods=1
-kibana_fqdns=["{{helm_release_name}}-odfe-kibana.nks.logstack.dyn.nesc.nokia.net"]
+kibana_fqdns=["{{helm_release_name}}-odfe-kibana.nks.logstack.{{cluster_domain}}"]
 ##################################################################################################
 ## Cluster credentials. Note shall be found from /path/to/secure.yml protected by ansible-vault
 ##################################################################################################
