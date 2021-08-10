@@ -21,7 +21,7 @@ kibana:
 {% endif %}
   ## Specifies the image pull policy. Can be "Always" or "IfNotPresent" or "Never".
   ## Default to "Always".
-  imagePullPolicy: ""
+  imagePullPolicy: "{{ kibana_imagePullPolicy | default('IfNotPresent') }}"
   replicas: 1
   port: 5601
   externalPort: 443
@@ -87,7 +87,7 @@ kibana:
 {#    annotations: {} #}
     annotations:
       kubernetes.io/ingress.class: nginx
-      kubernetes.io/tls-acme: "true"
+      kubernetes.io/tls-acme: "false"
     labels: {}
     path: /
     hosts:
@@ -105,6 +105,35 @@ kibana:
   service:
     type: ClusterIP
     annotations: {}
+  config:
+    server.name: kibana
+    server.host: "0"
+    server.ssl.enabled: false
+    elasticsearch.requestTimeout: 360000
+    {% if elastic_rest_https_enabled is not defined or not elastic_rest_https_enabled | bool %}
+    elasticsearch.hosts: http://{{ helm_release_name }}-opendistro-es-client-service:9200
+    elasticsearch.ssl.verificationMode: none
+    opendistro_security.cookie.secure: false
+    {% else %}
+    elasticsearch.hosts: https://{{ helm_release_name }}-opendistro-es-client-service:9200
+    elasticsearch.ssl.verificationMode: none
+    opendistro_security.cookie.secure: true
+    {% endif %}
+    elasticsearch.username: kibanaserver
+    elasticsearch.password: {{ opendistro_kibana_password }}
+    elasticsearch.requestHeadersWhitelist: ["securitytenant","Authorization"]
+    opendistro_security.multitenancy.enabled: true
+    {% if additional_tenant_name is defined and additional_tenant_name | length > 3 %}
+    opendistro_security.multitenancy.tenants.preferred: ["{{ additional_tenant_name }}", "Global", "Private"]
+    {% else %}
+    opendistro_security.multitenancy.tenants.preferred: ["Global", "Private"]
+    {% endif %}
+    opendistro_security.readonly_mode.roles: ["kibana_read_only"]
+    # Use this setting if you are running kibana without https
+    newsfeed.enabled: false
+    telemetry.optIn: false
+    telemetry.enabled: false
+    security.showInsecureClusterWarning: false
 {#
     ## if kibana configs not set uses intrnal ones also knows how to talk with elastic
   config:
@@ -131,7 +160,12 @@ kibana:
   ## ref: https://kubernetes.io/docs/user-guide/node-selection/
   #
 #}
-  nodeSelector: {}
+  nodeSelector:
+    {% if kibana_nodeselector is defined and kibana_nodeselector | length > 1 %}
+    {% for k in kibana_nodeselector|dict2items %}
+    {{ k.key }}: "{{ k.value }}"
+    {% endfor %}
+    {% endif %}
 {#
   ## Tolerations for pod assignment
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
@@ -218,14 +252,27 @@ elasticsearch:
   #   image: busybox
   #   command: ['do', 'something']
 
+
+
+{% if data_map_hostpath is defined and data_map_hostpath != '' and data_map_containerpath is defined and data_map_containerpath != '' %}
+  extraVolumes:
+   - name: extras
+     hostPath:
+       path: {{ data_map_hostpath }}
+       #type: Directory
+  extraVolumeMounts:
+   - name: extras
+     mountPath: {{ data_map_containerpath }}
+     readOnly: false
+{% else %}
   extraVolumes: []
   # - name: extras
   #   emptyDir: {}
-
   extraVolumeMounts: []
   # - name: extras
   #   mountPath: /usr/share/extras
   #   readOnly: true
+{% endif %}
 
   initContainer:
     image: busybox
@@ -266,7 +313,7 @@ elasticsearch:
     ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
     ##
     persistence:
-      enabled: false
+      enabled: true
 {#
       ## A manually managed Persistent Volume and Claim
       ## Requires persistence.enabled: true
@@ -295,7 +342,7 @@ elasticsearch:
       accessModes:
         - ReadWriteOnce
       #size: 8Gi
-      size: "{%- if master_storage_size is defined and master_storage_size | regex_search('[0-9].*Gi') -%}{{master_storage_size}}{%- else -%}20Gi{%- endif -%}"
+      size: "{%- if master_storage_size is defined and master_storage_size | regex_search('[0-9].*Gi') -%}{{master_storage_size}}{%- else -%}10Gi{%- endif -%}"
       annotations: {}
 
     resources: {}
@@ -318,7 +365,12 @@ elasticsearch:
       initialDelaySeconds: 60
       periodSeconds: 10
     startupProbe: []
-    nodeSelector: {}
+    nodeSelector:
+      {% if master_nodeselector is defined and master_nodeselector | length > 1 %}
+      {% for k in master_nodeselector|dict2items %}
+      {{ k.key }}: "{{ k.value }}"
+      {% endfor %}
+      {% endif %}
     tolerations: []
 {#    ## Anti-affinity to disallow deploying client and master nodes on the same worker node #}
     affinity: {}
@@ -367,8 +419,7 @@ elasticsearch:
       ## and one PV for multiple services.
       ##
 #}
-      subPath: ""
-
+      subPath: {{ data_subPath | default('')}}
 {#
       ## Open Distro master Persistent Volume Storage Class
       ## If defined, storageClassName: <storageClass>
@@ -378,15 +429,34 @@ elasticsearch:
       ##   GKE, AWS & OpenStack)
       ##
 #}
-{% if data_storageclass is defined %}
+
+{% if data_storageclass is defined and data_storageclass != "" %}
       storageClass: "{{ data_storageclass }}"
-{% endif %}
       accessModes:
         - ReadWriteOnce
       size: "{%- if data_storage_size is defined and data_storage_size | regex_search('[0-9].*Gi') -%}{{data_storage_size}}{%- else -%}200Gi{%- endif -%}"
+{% else %}
+      storageClassName: ""
+{% endif %}
       annotations: {}
-
+{% if data_cpu is defined and data_cpu is search('[0-9]') %}
+    resources:
+    {% if data_nolimit is not defined or not data_nolimit | bool %}
+      limits:
+        cpu: {{ data_cpu }}
+        {% if data_maxmem is defined and data_maxmem | regex_search('[0-9]Mi') %}
+        memory: {{ data_maxmem }}
+        {% endif %}
+    {% endif %}
+      requests:
+        cpu: {{ data_requests_cpu | default(4) }}
+        {% if data_maxmem is defined and data_maxmem | regex_search('[0-9]Mi') %}
+        memory: {{ data_maxmem }}
+        {% endif %}
+{% else %}
     resources: {}
+{% endif %}
+{#
     #  limits:
     #    cpu: 1
     #    memory: 1024Mi
@@ -394,6 +464,7 @@ elasticsearch:
     #    cpu: 200m
     #    memory: 1024Mi
     #javaOpts: "-Xms512m -Xmx512m"
+#}
     javaOpts: "{%- if data_javaOpts is defined and data_javaOpts | regex_search('Xms.*Xmx') -%}{{data_javaOpts}}{%- else -%}-Xms2048m -Xmx2048m{%- endif -%}"
     podDisruptionBudget:
       enabled: true
@@ -406,7 +477,12 @@ elasticsearch:
       initialDelaySeconds: 60
       periodSeconds: 10
     startupProbe: []
-    nodeSelector: {}
+    nodeSelector:
+      {% if data_nodeselector is defined and data_nodeselector | length > 1 %}
+      {% for k in data_nodeselector|dict2items %}
+      {{ k.key }}: "{{ k.value }}"
+      {% endfor %}
+      {% endif %}
     tolerations: []
 {#    ## Anti-affinity to disallow deploying client and master nodes on the same worker node #}
     affinity: {}
@@ -465,7 +541,21 @@ elasticsearch:
             - {{ fqdn }}
     {% endfor %}
 {% endif %}
+{% if ingest_requests_cpu is defined and ingest_requests_cpu is search('[0-9]') %}
+    resources:
+    {% if ingest_nolimit is not defined or not ingest_nolimit | bool %}
+      limits:
+        cpu: {{ ingest_max_cpu | default('2') }}
+        {% if ingest_maxmem is defined and ingest_maxmem | regex_search('[0-9]Mi') %}
+        memory: {{ ingest_maxmem }}
+        {% endif %}
+    {% endif %}
+      requests:
+        cpu: {{ ingest_requests_cpu | default('300m') }}
+        memory: {{ ingest_request_mem | default('1000Mi') }}
+{% else %}
     resources: {}
+{% endif %}
     #  limits:
     #    cpu: 1
     #    memory: 1024Mi
@@ -483,7 +573,12 @@ elasticsearch:
       initialDelaySeconds: 60
       periodSeconds: 10
     startupProbe: []
-    nodeSelector: {}
+    nodeSelector:
+      {% if ingest_nodeselector is defined and ingest_nodeselector | length > 1 %}
+      {% for k in ingest_nodeselector|dict2items %}
+      {{ k.key }}: "{{ k.value }}"
+      {% endfor %}
+      {% endif %}
     tolerations: []
     ## Weighted anti-affinity to disallow deploying client node to the same worker node as master node
     affinity: {}
@@ -518,13 +613,15 @@ elasticsearch:
       # attr.box_type: hot
 
      # node.max_local_storage_nodes: 1
-
      processors: ${PROCESSORS:4}
-
      network.host: "0.0.0.0"
-     thread_pool.write.queue_size: 5000
-     thread_pool.get.queue_size: 2000
-     thread_pool.search.queue_size: 1000
+     thread_pool.management.core: 2
+     thread_pool.management.max: 4
+     thread_pool.get.queue_size: 3000
+     thread_pool.search.queue_size: 3000
+     thread_pool.search.max_queue_size: 4000
+     thread_pool.write.queue_size: 8000
+     thread_pool.system_write.queue_size: 4000
      # [thread_pool.get.queue_size, thread_pool.write.queue_size, thread_pool.analyze.queue_size, thread_pool.search.queue_size, thread_pool.listener.queue_size]
 
      path:
@@ -536,6 +633,7 @@ elasticsearch:
        zen:
          minimum_master_nodes: ${minimum_master_nodes:2}
     {% endraw %}
+
     # # TLS Configuration Transport Layer
      opendistro_security.ssl.transport.pemcert_filepath: elk-transport-crt.pem
      opendistro_security.ssl.transport.pemkey_filepath: elk-transport-key.pem
@@ -587,7 +685,7 @@ elasticsearch:
 {% endif %}
   ## Specifies the image pull policy. Can be "Always" or "IfNotPresent" or "Never".
   ## Default to "Always".
-  imagePullPolicy: ""
+  imagePullPolicy: "{{ elastic_imagePullPolicy | default('IfNotPresent') }}"
 
   configDirectory: "/usr/share/elasticsearch/config"
 
