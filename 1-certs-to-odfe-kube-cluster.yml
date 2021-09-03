@@ -9,7 +9,7 @@
   tasks:
     - name: include {{ cluster_name }} secrets.yml
       include_vars: "{{ deploy_base_path }}/secrets.yml"
-      
+
     - name: create namespace
       community.kubernetes.k8s:
         name: "{{ deploy_namespace }}"
@@ -31,6 +31,7 @@
         definition:
           apiVersion: v1
           kind: Secret
+          type: Opaque
           metadata:
             name: kibana-certs
             namespace: "{{ deploy_namespace }}"
@@ -51,6 +52,7 @@
         definition:
           apiVersion: v1
           kind: Secret
+          type: Opaque
           metadata:
             name: elasticsearch-admin-certs
             namespace: "{{ deploy_namespace }}"
@@ -71,6 +73,7 @@
         definition:
           apiVersion: v1
           kind: Secret
+          type: Opaque
           metadata:
             name: "elasticsearch-transport-certs"
             namespace: "{{ deploy_namespace }}"
@@ -91,6 +94,7 @@
         definition:
           apiVersion: v1
           kind: Secret
+          type: Opaque
           metadata:
             name: elasticsearch-rest-certs
             namespace: "{{ deploy_namespace }}"
@@ -103,3 +107,45 @@
         validate:
           fail_on_error: no
           strict: yes
+
+    - name: push nodetrust.p12 secrets
+      community.kubernetes.k8s:
+        state: "{{ state }}"
+        apply: yes
+        definition:
+          apiVersion: v1
+          kind: Secret
+          type: Opaque
+          metadata:
+            name: nodetrust
+            namespace: "{{ deploy_namespace }}"
+            labels:
+              app: elasticsearch
+          data:
+            nodetrust.p12: "{{ nodetrust['content'] }}"
+        validate:
+          fail_on_error: no
+          strict: yes
+
+    - name: push tls-ca-bundle.pem secrets
+      community.kubernetes.k8s:
+        state: "{{ state }}"
+        #apply: "{%- if update_cabundle is not defined or not update_cabundle | bool -%}no{%- else -%}yes{%- endif %}"
+        force: "{%- if update_cabundle is not defined or not update_cabundle | bool -%}no{%- else -%}yes{%- endif %}"
+        merge_type: merge
+        definition:
+          apiVersion: v1
+          kind: Secret
+          type: Opaque
+          metadata:
+            name: cabundle
+            namespace: "{{ deploy_namespace }}"
+            labels:
+              app: elasticsearch
+          data:
+            tls-ca-bundle.pem: "{{ cabundle['content'] }}"
+        validate:
+          fail_on_error: no
+          strict: yes
+      when:
+        - cabundle is defined and cabundle['content'] is defined

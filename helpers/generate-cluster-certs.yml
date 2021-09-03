@@ -120,9 +120,23 @@
     module: shell
     cmd: |
           cd {{basedir}}_{{id}}/;
-          if [ ! -s "nodetrust_trust.p12" ]; then
-          openssl pkcs12 -export -inkey root-ca-key.pem -in root-ca.pem -name nodetrust -passin pass: -passout pass:changeit -out nodetrust_trust.p12;
+          if [ ! -s "nodetrust.p12" ]; then
+          openssl pkcs12 -export -inkey root-ca-key.pem -in root-ca.pem -name nodetrust -passin pass: -passout pass:changeit -out nodetrust.p12 && \
+          base64 -i nodetrust.p12 -o nodetrust.p12.b64
           fi;
+# gives error, needs to be done differently
+# Error was a <class 'UnicodeDecodeError'>, original message: 'utf-8' codec can't decode byte 0x82 in position 1: invalid start byte
+#- name: Security Plugin Install | Read nodetrust_trust.p12 to base64 nodetrust var
+#  set_fact:
+#    nodetrust: "{{ lookup('pipe', '/bin/cat ' + basedir + '_' + id + '/' + 'nodetrust_trust.p12')  | b64encode }}"
+
+- name: Security Plugin Install | Slurp | Read nodetrust_trust.p12 to base64 nodetrust var
+  become: no
+  local_action:
+    module: slurp
+    src: "{{basedir}}_{{id}}/nodetrust.p12"
+  register: nodetrust
+
 
 - name: Security Plugin Install | printout_certs flag set
   debug:
@@ -142,3 +156,50 @@
     - "{{ monitorpem }}"
   loop_control:
     label: ""
+
+
+- name: "tls-ca-bundle.pem | Check if {{basedir}}_{{id}}/tls-ca-bundle.pem exists"
+  become: no
+  local_action:
+    module: stat
+    path: "{{basedir}}_{{id}}/tls-ca-bundle.pem"
+  register: cabundle_exist
+
+- name: "tls-ca-bundle.pem | Download ca-bundle"
+  #ignore_errors: true
+  register: download_result
+  become: no
+  local_action:
+    module: get_url
+    url: "{{ cabundle_url | default('https://curl.se/ca/cacert.pem')}}"
+    dest: "{{basedir}}_{{id}}/tls-ca-bundle.pem"
+    validate_certs: yes
+  retries: 3
+  delay: 3
+  until:
+    - >
+      download_result['status_code']|default(0) == 200
+      or
+      download_result['status_code']|default(0) == 304
+      or
+      'OK' in download_result.msg
+      or
+      'Not Modified' in download_result.msg
+      or
+      'file already exists' in download_result.msg
+  when:
+    - >
+      (skip_cabundle is not defined or skip_cabundle is defined and not skip_cabundle | bool)
+      and
+      (skip_cabundle_download is not defined or skip_cabundle_download is defined and not skip_cabundle_download | bool)
+    - >
+      ( update_cabundle is defined and update_cabundle | bool )
+      or
+      ( cabundle_exist is defined and cabundle_exist.stat.exists == False )
+
+- name: tls-ca-bundle.pem | Slurp | Read tls-ca-bundle.pem to base64 cabundle var
+  become: no
+  local_action:
+    module: slurp
+    src: "{{basedir}}_{{id}}/tls-ca-bundle.pem"
+  register: cabundle

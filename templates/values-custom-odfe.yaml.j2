@@ -16,7 +16,7 @@
 kibana:
   enabled: true
   image: "amazon/opendistro-for-elasticsearch-kibana"
-{% if opendistro_version is defined and opendistro_version | length > 1%}
+{% if opendistro_version is defined and opendistro_version | length > 1 %}
   imageTag: {{opendistro_version}}
 {% endif %}
   ## Specifies the image pull policy. Can be "Always" or "IfNotPresent" or "Never".
@@ -127,6 +127,11 @@ kibana:
     opendistro_security.multitenancy.tenants.preferred: ["{{ additional_tenant_name }}", "Global", "Private"]
     {% else %}
     opendistro_security.multitenancy.tenants.preferred: ["Global", "Private"]
+    {% endif %}
+    {% if opendistro_use_ldap is defined and opendistro_use_ldap | bool %}
+    opendistro_security.ssl.transport.truststore_type: PKCS12/PFX
+    opendistro_security.ssl.transport.truststore_filepath: nodetrust_trust.p12
+    opendistro_security.ssl.transport.truststore_password: {{ opendistro_truststore_password | default('changeit') }}
     {% endif %}
     opendistro_security.readonly_mode.roles: ["kibana_read_only"]
     # Use this setting if you are running kibana without https
@@ -260,15 +265,48 @@ elasticsearch:
      hostPath:
        path: {{ data_map_hostpath }}
        #type: Directory
+   - name: cabundle
+     secret:
+      secretName: cabundle
+      items:
+        - key: tls-ca-bundle.pem
+          path: tls-ca-bundle.pem
+   - name: trustp12
+     secret:
+      secretName: nodetrust
+      items:
+        - key: nodetrust.p12
+          path: nodetrust.p12
   extraVolumeMounts:
    - name: extras
      mountPath: {{ data_map_containerpath }}
      readOnly: false
+   - name: trustp12
+     mountPath: /usr/share/elasticsearch/config/nodetrust.p12
+     subPath: nodetrust.p12
+     readOnly: false
+   - name: cabundle
+     mountPath: /usr/share/elasticsearch/config/tls-ca-bundle.pem
+     subPath: tls-ca-bundle.pem
+     readOnly: true
 {% else %}
-  extraVolumes: []
+  extraVolumes:
+   - name: trustp12
+     secret:
+      secretName: nodetrust
+      items:
+        - key: nodetrust.p12
+          path: nodetrust.p12
+  extraVolumeMounts:
+   - name: trustp12
+     mountPath: /usr/share/elasticsearch/config/nodetrust.p12
+     subPath: nodetrust.p12
+     mode: 0664
+     readOnly: false
+  # extraVolumes: []
   # - name: extras
   #   emptyDir: {}
-  extraVolumeMounts: []
+  # extraVolumeMounts: []
   # - name: extras
   #   mountPath: /usr/share/extras
   #   readOnly: true
@@ -650,7 +688,10 @@ elasticsearch:
      opendistro_security.ssl.http.pemtrustedcas_filepath: elk-rest-root-ca.pem
      opendistro_security.authcz.admin_dn:
        - "DC=kube,C=FI,O=odfe,OU=client,CN=admin.kubernetes.fi"
+
+
   log4jConfig: ""
+
   {% raw %}
   loggingConfig:
     ## Default config
@@ -662,6 +703,8 @@ elasticsearch:
       action: DEBUG
       ## reduce the logging for aws, too much is logged under the default INFO
       com.amazonaws: WARN
+      com.amazon.dlic.auth.ldap.backend.LDAPAuthenticationBackend: TRACE
+      com.amazon.dlic.auth: INFO
     appender:
       console:
         type: console
@@ -680,7 +723,7 @@ elasticsearch:
   maxMapCount: 262144
 
   image: "amazon/opendistro-for-elasticsearch"
-{% if opendistro_version is defined and opendistro_version | length > 1%}
+{% if opendistro_version is defined and opendistro_version | length > 1 %}
   imageTag: {{opendistro_version}}
 {% endif %}
   ## Specifies the image pull policy. Can be "Always" or "IfNotPresent" or "Never".

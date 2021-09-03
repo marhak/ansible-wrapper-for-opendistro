@@ -164,9 +164,9 @@ config:
             # send client certificate
             enable_ssl_client_auth: false
             # verify ldap hostname
-            verify_hostnames: false
+            verify_hostnames: true
             #pemtrustedcas_filepath: /etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt
-            pemtrustedcas_filepath: tls-ca-bundle.pem
+            pemtrustedcas_filepath: {{ ldap_pemtrustedcas_filepath | default('tls-ca-bundle.pem') }}
             hosts:
               - "{{ ldap_host | default('ed-p-gl.emea.nsn-net.net:636') }}"
             bind_dn: '{{ ldap_system_bind_dn | default('cn=EE_CLOUD_INT_DEV_Acc,ou=SystemUsers,ou=Accounts,o=NSN') }}'
@@ -197,8 +197,8 @@ config:
             # send client certificate
             enable_ssl_client_auth: false
             # verify ldap hostname
-            verify_hostnames: false
-            pemtrustedcas_filepath: /etc/pki/tls/certs/ca-bundle.trust.crt
+            verify_hostnames: true
+            pemtrustedcas_filepath: {{ ldap_pemtrustedcas_filepath | default('tls-ca-bundle.pem') }}
             #pemtrustedcas_filepath: tls-ca-bundle.pem
             hosts:
               - "{{ ldap_host | default('ed-p-gl.emea.nsn-net.net:636') }}"
