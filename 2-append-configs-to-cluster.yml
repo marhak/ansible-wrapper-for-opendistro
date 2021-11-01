@@ -9,9 +9,17 @@
     state: present
     #tofile: true
   pre_tasks:
+    - name: Make sure deploy_base_path {{ deploy_base_path | default('IsNotSet')}} directory exists
+      local_action:
+        module: file
+        path: "{{ deploy_base_path }}"
+        state: directory
+      when:
+        - deploy_base_path != ""
+        
     - name: include {{ cluster_name }} secrets.yml
       include_vars: "{{ deploy_base_path }}/secrets.yml"
-      
+
     - name: generate {{ cluster_name }} cluster certs
       register: response
       include_tasks: helpers/generate-cluster-certs.yml

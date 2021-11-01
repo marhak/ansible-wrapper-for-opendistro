@@ -436,8 +436,10 @@ elasticsearch:
     dedicatedPod:
       enabled: true
     replicas: {{ data_pods | default(1) }}
-    updateStrategy: "RollingUpdate"
+    updateStrategy: "OnDelete"
 {#
+    updateStrategy: "RollingUpdate"
+
     ## Enable persistence using Persistent Volume Claims
     ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
     ##
@@ -477,19 +479,19 @@ elasticsearch:
       storageClassName: ""
 {% endif %}
       annotations: {}
-{% if data_cpu is defined and data_cpu is search('[0-9]') %}
+{% if data_max_cpu is defined or data_requests_cpu is defined %}
     resources:
     {% if data_nolimit is not defined or not data_nolimit | bool %}
       limits:
-        cpu: {{ data_cpu }}
+        cpu: {{ data_max_cpu | default('6') }}
         {% if data_maxmem is defined and data_maxmem | regex_search('[0-9]Mi') %}
         memory: {{ data_maxmem }}
         {% endif %}
     {% endif %}
       requests:
         cpu: {{ data_requests_cpu | default(4) }}
-        {% if data_maxmem is defined and data_maxmem | regex_search('[0-9]Mi') %}
-        memory: {{ data_maxmem }}
+        {% if data_requests_mem is defined and data_requests_mem | regex_search('[0-9]Mi') %}
+        memory: {{ data_requests_mem }}
         {% endif %}
 {% else %}
     resources: {}
@@ -579,11 +581,11 @@ elasticsearch:
             - {{ fqdn }}
     {% endfor %}
 {% endif %}
-{% if ingest_requests_cpu is defined and ingest_requests_cpu is search('[0-9]') %}
+{% if ingest_requests_cpu is defined or ingest_max_cpu is defined %}
     resources:
     {% if ingest_nolimit is not defined or not ingest_nolimit | bool %}
       limits:
-        cpu: {{ ingest_max_cpu | default('2') }}
+        cpu: {{ ingest_max_cpu | default('2000m') }}
         {% if ingest_maxmem is defined and ingest_maxmem | regex_search('[0-9]Mi') %}
         memory: {{ ingest_maxmem }}
         {% endif %}

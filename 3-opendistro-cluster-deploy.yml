@@ -11,6 +11,14 @@
   roles:
     - opendistro-configs
   pre_tasks:
+    - name: Make sure deploy_base_path {{ deploy_base_path | default('IsNotSet')}} directory exists
+      local_action:
+        module: file
+        path: "{{ deploy_base_path }}"
+        state: directory
+      when:
+        - deploy_base_path != ""
+
     - name: include secrets
       include_vars: "{{ deploy_base_path }}/secrets.yml"
 
@@ -27,6 +35,15 @@
       set_fact:
         deployments: "{{ lookup('community.kubernetes.k8s', api_version='v1', namespace=deploy_namespace, kind='Deployment') }}"
     - debug: var=deployments
+
+    - name: Make sure configs subdir configs_{{ cluster_name | default('ClusterNameIsNotSet')}} directory exists
+      local_action:
+        module: file
+        path: "{{ deploy_base_path }}/configs_{{ cluster_name }}"
+        state: directory
+      when:
+        - deploy_base_path != "" and cluster_name != ""
+        
     - name: generate cluster certs
       vars:
         tofile: false
