@@ -641,7 +641,8 @@ elasticsearch:
      opendistro_security.check_snapshot_restore_write_privileges: true
      opendistro_security.audit.config.disabled_rest_categories: NONE
      opendistro_security.audit.config.disabled_transport_categories: NONE
-
+     opendistro_security.restapi.roles_enabled: ["all_access", "security_rest_api_access"]
+     opendistro_security.roles_mapping_resolution: BOTH
      cluster.routing.allocation.disk.threshold_enabled: true
      #cluster.name: ${cluster.name}
 
