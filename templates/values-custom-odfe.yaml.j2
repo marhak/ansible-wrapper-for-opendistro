@@ -383,7 +383,23 @@ elasticsearch:
       size: "{%- if master_storage_size is defined and master_storage_size | regex_search('[0-9].*Gi') -%}{{master_storage_size}}{%- else -%}10Gi{%- endif -%}"
       annotations: {}
 
+{% if master_max_cpu is defined or master_requests_cpu is defined or master_requests_mem is defined %}
+    resources:
+    {% if master_nolimit is not defined or not master_nolimit | bool %}
+      limits:
+        cpu: {{ master_max_cpu | default('2') }}
+        {% if master_maxmem is defined and master_maxmem | regex_search('[0-9]Mi') %}
+        memory: {{ master_maxmem }}
+        {% endif %}
+    {% endif %}
+      requests:
+        cpu: {{ master_requests_cpu | default('500m') }}
+        {% if master_requests_mem is defined and master_requests_mem | regex_search('[0-9]Mi') %}
+        memory: {{ master_requests_mem }}
+        {% endif %}
+{% else %}
     resources: {}
+{% endif %}
     #  limits:
     #    cpu: 1
     #    memory: 1024Mi
